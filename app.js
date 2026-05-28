@@ -1,0 +1,67 @@
+const express = require("express");
+
+const mongoose = require("mongoose");
+
+const cors = require("cors");
+
+require("dotenv").config();
+
+const authRoutes = require("./routes/authRoutes");
+
+const chatRoutes = require("./routes/chatRoutes");
+
+const messageRoutes = require("./routes/messageRoutes");
+
+const uploadRoutes = require("./routes/uploadRoutes");
+
+const swaggerDocs = require("./config/swagger");
+
+const app = express();
+
+// Middleware
+app.use(cors());
+
+app.use(express.json());
+
+app.use(express.urlencoded({ extended: true }));
+
+// MongoDB connection
+mongoose
+  .connect(process.env.MONGO_URI)
+  .then(() => {
+
+    console.log("DB Connected");
+
+  })
+  .catch((err) => {
+
+    console.log(err);
+
+  });
+
+// Static uploads folder
+app.use(
+  "/uploads",
+  express.static("uploads")
+);
+
+// Routes
+app.use("/api/auth", authRoutes);
+
+app.use("/api/chats", chatRoutes);
+
+app.use("/api/messages", messageRoutes);
+
+app.use("/api/upload", uploadRoutes);
+
+// Swagger
+swaggerDocs(app);
+
+// Default route
+app.get("/", (req, res) => {
+
+  res.send("Chat API Running");
+
+});
+
+module.exports = app;

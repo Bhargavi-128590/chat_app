@@ -1,0 +1,33 @@
+{
+  "name": "chat_app",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "nodemon server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "^3.1.0",
+    "@react-navigation/native": "^7.2.5",
+    "@react-navigation/native-stack": "^7.16.0",
+    "axios": "^1.16.1",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.5.2",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.6.2",
+    "multer": "^2.1.1",
+    "nodemailer": "^8.0.8",
+    "react-native-vector-icons": "^10.3.0",
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3",
+    "swagger-jsdoc": "^6.3.0",
+    "swagger-ui-express": "^5.0.1"
+  }
+}
