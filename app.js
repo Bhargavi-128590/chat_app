@@ -1,7 +1,5 @@
 const express = require("express");
 
-const mongoose = require("mongoose");
-
 const cors = require("cors");
 
 require("dotenv").config();
@@ -25,25 +23,8 @@ app.use(express.json());
 
 app.use(express.urlencoded({ extended: true }));
 
-// MongoDB connection
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => {
-
-    console.log("DB Connected");
-
-  })
-  .catch((err) => {
-
-    console.log(err);
-
-  });
-
 // Static uploads folder
-app.use(
-  "/uploads",
-  express.static("uploads")
-);
+app.use("/uploads", express.static("uploads"));
 
 // Routes
 app.use("/api/auth", authRoutes);
@@ -59,9 +40,7 @@ swaggerDocs(app);
 
 // Default route
 app.get("/", (req, res) => {
-
   res.send("Chat API Running");
-
 });
 
 module.exports = app;
