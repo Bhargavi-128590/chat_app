@@ -3,7 +3,7 @@ const transporter = require("../config/mail");
 exports.sendOtp = async (email, otp) => {
   try {
     await transporter.sendMail({
-      from: `"Your App" <${process.env.EMAIL}>`,
+      from: `"Your App" <bhargavithippareddy12@gmail.com>`,
       to: email,
       subject: "Your OTP Code",
       html: `
