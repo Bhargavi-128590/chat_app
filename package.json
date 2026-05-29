@@ -25,6 +25,7 @@
     "multer": "^2.1.1",
     "nodemailer": "^8.0.8",
     "react-native-vector-icons": "^10.3.0",
+    "resend": "^6.12.4",
     "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3",
     "swagger-jsdoc": "^6.3.0",
