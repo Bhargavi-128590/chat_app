@@ -15,8 +15,11 @@ const options = {
     servers: [
       {
         url: "http://localhost:5000",
-                url: "https://chat-app-odlx.onrender.com",
-
+        description: "Local Server",
+      },
+      {
+        url: "https://chat-app-odlx.onrender.com",
+        description: "Production Server",
       },
     ],
 
@@ -43,11 +46,5 @@ const options = {
 const specs = swaggerJsDoc(options);
 
 module.exports = (app) => {
-
-  app.use(
-    "/api-docs",
-    swaggerUi.serve,
-    swaggerUi.setup(specs)
-  );
-
+  app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(specs));
 };
