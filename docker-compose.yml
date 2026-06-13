@@ -6,10 +6,11 @@ services:
       - "3000:5000"
     depends_on:
       - redis
-    environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_URL=redis://red-d8mesv6rnols73chren0:6379
+      - mongo
+    # environment:
+    #   - REDIS_HOST=redis
+    #   - REDIS_PORT=6379
+    #   - REDIS_URL=redis://redis:6379    
     env_file :
       - .env    
 
