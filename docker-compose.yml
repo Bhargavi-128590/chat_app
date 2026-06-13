@@ -9,6 +9,7 @@ services:
     environment:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - REDIS_URL=redis://red-d8mesv6rnols73chren0:6379
     env_file :
       - .env    
 
