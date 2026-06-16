@@ -7,10 +7,7 @@ services:
     depends_on:
       - redis
       - mongo
-    # environment:
-    #   - REDIS_HOST=redis
-    #   - REDIS_PORT=6379
-    #   - REDIS_URL=redis://redis:6379    
+       
     env_file :
       - .env    
 

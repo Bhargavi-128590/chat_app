@@ -1,13 +1,12 @@
 const User = require("../models/User");
 const { sendOtp } = require("../utils/sendOtp");
 const { generateToken } = require("../utils/jwt");
-const redisClient = require("../config/redis").redisClient;
+const {redisClient} = require("../config/redis").redisClient;
 
 // // Send OTP
 // exports.sendOtp = async (req, res) => {
 //   try {
 //     const { email } = req.body;
-    
 
 //     let user = await User.findOne({ email });
 
@@ -96,7 +95,6 @@ const redisClient = require("../config/redis").redisClient;
 //   }
 // };
 
-
 // // Resend OTP with cooldown
 // exports.resendOtp = async (req, res) => {
 //   try {
@@ -151,7 +149,6 @@ const redisClient = require("../config/redis").redisClient;
 
 //   }
 // };
-
 
 // // Auto login (existing user)
 // exports.autoLogin = async (req, res) => {
@@ -233,8 +230,6 @@ const redisClient = require("../config/redis").redisClient;
 //   }
 // };
 
-
-
 exports.sendOtp = async (req, res) => {
   try {
     const { email } = req.body;
@@ -246,14 +241,15 @@ exports.sendOtp = async (req, res) => {
       await user.save();
     }
 
-    const otp =
-      Math.floor(100000 + Math.random() * 900000).toString();
+    console.log("Before Redis SET");
 
-    await redisClient.set(
-      `otp:${email}`,
-      otp,
-      { EX: 300 }
-    );
+    const result = await redisClient.set(`otp:${email}`, otp, { EX: 300 });
+
+    console.log("Redis SET Result:", result);
+
+    const storedOtp = await redisClient.get(`otp:${email}`);
+
+    console.log("Stored OTP:", storedOtp);
 
     await sendOtp(email, otp);
 
@@ -261,7 +257,6 @@ exports.sendOtp = async (req, res) => {
       success: true,
       message: "OTP sent successfully",
     });
-
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -270,11 +265,8 @@ exports.sendOtp = async (req, res) => {
   }
 };
 
-
-
 exports.verifyOtp = async (req, res) => {
   try {
-
     const { email, otp } = req.body;
 
     const user = await User.findOne({ email });
@@ -286,8 +278,7 @@ exports.verifyOtp = async (req, res) => {
       });
     }
 
-    const storedOtp =
-      await redisClient.get(`otp:${email}`);
+    const storedOtp = await redisClient.get(`otp:${email}`);
 
     if (!storedOtp) {
       return res.status(400).json({
@@ -310,11 +301,7 @@ exports.verifyOtp = async (req, res) => {
 
     await user.save();
 
-    await redisClient.set(
-      `user:${email}`,
-      JSON.stringify(user),
-      { EX: 3600 }
-    );
+    await redisClient.set(`user:${email}`, JSON.stringify(user), { EX: 3600 });
 
     const token = generateToken(user);
 
@@ -324,22 +311,16 @@ exports.verifyOtp = async (req, res) => {
       token,
       user,
     });
-
   } catch (error) {
-
     res.status(500).json({
       success: false,
       message: error.message,
     });
-
   }
 };
 
-
-
 exports.resendOtp = async (req, res) => {
   try {
-
     const { email } = req.body;
 
     const user = await User.findOne({ email });
@@ -351,34 +332,20 @@ exports.resendOtp = async (req, res) => {
       });
     }
 
-    const cooldown =
-      await redisClient.get(
-        `cooldown:${email}`
-      );
+    const cooldown = await redisClient.get(`cooldown:${email}`);
 
     if (cooldown) {
       return res.status(400).json({
         success: false,
-        message:
-          "Please wait 30 seconds before requesting again",
+        message: "Please wait 30 seconds before requesting again",
       });
     }
 
-    const otp =
-      Math.floor(100000 + Math.random() * 900000)
-        .toString();
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    await redisClient.set(
-      `otp:${email}`,
-      otp,
-      { EX: 300 }
-    );
+    await redisClient.set(`otp:${email}`, otp, { EX: 300 });
 
-    await redisClient.set(
-      `cooldown:${email}`,
-      "true",
-      { EX: 30 }
-    );
+    await redisClient.set(`cooldown:${email}`, "true", { EX: 30 });
 
     await sendOtp(email, otp);
 
@@ -386,41 +353,27 @@ exports.resendOtp = async (req, res) => {
       success: true,
       message: "OTP resent successfully",
     });
-
   } catch (error) {
-
     res.status(500).json({
       success: false,
       message: error.message,
     });
-
   }
 };
 
-
-
-
 exports.autoLogin = async (req, res) => {
   try {
-
     const { email } = req.body;
 
-    const cachedUser =
-      await redisClient.get(
-        `user:${email}`
-      );
+    const cachedUser = await redisClient.get(`user:${email}`);
 
     if (cachedUser) {
-
       console.log("CACHE HIT");
 
-      const user =
-        JSON.parse(cachedUser);
+      const user = JSON.parse(cachedUser);
 
       if (!user.loggedOut) {
-
-        const token =
-          generateToken(user);
+        const token = generateToken(user);
 
         return res.status(200).json({
           success: true,
@@ -433,8 +386,7 @@ exports.autoLogin = async (req, res) => {
 
     console.log("CACHE MISS");
 
-    const user =
-      await User.findOne({ email });
+    const user = await User.findOne({ email });
 
     if (!user) {
       return res.status(404).json({
@@ -443,16 +395,10 @@ exports.autoLogin = async (req, res) => {
       });
     }
 
-    await redisClient.set(
-      `user:${email}`,
-      JSON.stringify(user),
-      { EX: 3600 }
-    );
+    await redisClient.set(`user:${email}`, JSON.stringify(user), { EX: 3600 });
 
     if (!user.loggedOut) {
-
-      const token =
-        generateToken(user);
+      const token = generateToken(user);
 
       return res.status(200).json({
         success: true,
@@ -465,28 +411,19 @@ exports.autoLogin = async (req, res) => {
     res.status(200).json({
       success: false,
       autoLogin: false,
-      message:
-        "OTP verification required",
+      message: "OTP verification required",
     });
-
   } catch (error) {
-
     res.status(500).json({
       success: false,
       message: error.message,
     });
-
   }
 };
 
-
-
-
 exports.logout = async (req, res) => {
   try {
-
-    const user =
-      await User.findById(req.user.id);
+    const user = await User.findById(req.user.id);
 
     if (!user) {
       return res.status(404).json({
@@ -501,22 +438,16 @@ exports.logout = async (req, res) => {
 
     await user.save();
 
-    await redisClient.del(
-      `user:${user.email}`
-    );
+    await redisClient.del(`user:${user.email}`);
 
     res.status(200).json({
       success: true,
-      message:
-        "Logged out successfully",
+      message: "Logged out successfully",
     });
-
   } catch (error) {
-
     res.status(500).json({
       success: false,
       message: error.message,
     });
-
   }
 };
