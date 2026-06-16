@@ -1,6 +1,7 @@
 const User = require("../models/User");
 const { sendOtp } = require("../utils/sendOtp");
 const { generateToken } = require("../utils/jwt");
+const redisClient = require("../config/redis").redisClient;
 
 // // Send OTP
 // exports.sendOtp = async (req, res) => {
