@@ -1,8 +1,7 @@
 const User = require("../models/User");
 const { sendOtp } = require("../utils/sendOtp");
 const { generateToken } = require("../utils/jwt");
-const {redisClient} = require("../config/redis").redisClient;
-
+const { redisClient } = require("../config/redis");
 // // Send OTP
 // exports.sendOtp = async (req, res) => {
 //   try {
@@ -241,15 +240,24 @@ exports.sendOtp = async (req, res) => {
       await user.save();
     }
 
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
     console.log("Before Redis SET");
+
+console.log("redisClient =", redisClient);
+console.log("redisClient type =", typeof redisClient);
+
+  console.log("redisClient value:", redisClient);
 
     const result = await redisClient.set(`otp:${email}`, otp, { EX: 300 });
 
-    console.log("Redis SET Result:", result);
 
-    const storedOtp = await redisClient.get(`otp:${email}`);
+    
+    console.log("Redis Result:", result);
 
-    console.log("Stored OTP:", storedOtp);
+    const value = await redisClient.get(`otp:${email}`);
+
+    console.log("Redis Value:", value);
 
     await sendOtp(email, otp);
 
@@ -258,6 +266,8 @@ exports.sendOtp = async (req, res) => {
       message: "OTP sent successfully",
     });
   } catch (error) {
+    console.log(error);
+
     res.status(500).json({
       success: false,
       message: error.message,
