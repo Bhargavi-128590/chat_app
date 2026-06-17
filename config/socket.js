@@ -1,4 +1,5 @@
 const { Server } = require("socket.io");
+const User = require("../models/User");
 
 let io;
 
@@ -10,38 +11,36 @@ const initSocket = (server) => {
   });
 
   io.on("connection", (socket) => {
-    console.log("User connected:", socket.id);
+    console.log("User Connected:", socket.id);
 
+    // User Setup
     socket.on("setup", async (userId) => {
-      socket.join(userId);
+      try {
+        socket.join(userId);
 
-      socket.userId = userId;
+        socket.userId = userId;
 
-      await User.findByIdAndUpdate(userId, {
-        isOnline: true,
-        socketId: socket.id,
-      });
+        await User.findByIdAndUpdate(userId, {
+          isOnline: true,
+          socketId: socket.id,
+        });
 
-      io.emit("user_online", userId);
+        io.emit("user_online", userId);
+
+        console.log("User Room Joined:", userId);
+      } catch (error) {
+        console.log("Setup Error:", error.message);
+      }
     });
 
-    // Setup user room
-    socket.on("setup", (userId) => {
-      socket.join(userId);
-
-      socket.userId = userId;
-
-      console.log("User room joined:", userId);
-    });
-
-    // Join chat
+    // Join Chat Room
     socket.on("join_chat", (chatId) => {
       socket.join(chatId);
 
-      console.log("Joined chat:", chatId);
+      console.log("Joined Chat:", chatId);
     });
 
-    // Typing
+    // Typing Event
     socket.on("typing", (chatId) => {
       socket.to(chatId).emit("typing", {
         chatId,
@@ -49,7 +48,7 @@ const initSocket = (server) => {
       });
     });
 
-    // Stop typing
+    // Stop Typing Event
     socket.on("stop_typing", (chatId) => {
       socket.to(chatId).emit("stop_typing", {
         chatId,
@@ -57,10 +56,11 @@ const initSocket = (server) => {
       });
     });
 
-    socket.on("disconnect", () => {
-      console.log("Disconnected");
+    // Disconnect Event
+    socket.on("disconnect", async () => {
+      try {
+        console.log("User Disconnected:", socket.id);
 
-      socket.on("disconnect", async () => {
         if (socket.userId) {
           await User.findByIdAndUpdate(socket.userId, {
             isOnline: false,
@@ -70,7 +70,9 @@ const initSocket = (server) => {
 
           io.emit("user_offline", socket.userId);
         }
-      });
+      } catch (error) {
+        console.log("Disconnect Error:", error.message);
+      }
     });
   });
 

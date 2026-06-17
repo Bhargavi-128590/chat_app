@@ -12,6 +12,8 @@ const messageRoutes = require("./routes/messageRoutes");
 
 const uploadRoutes = require("./routes/uploadRoutes");
 
+const notificationRoutes = require("./routes/notificationRoutes");
+
 const swaggerDocs = require("./config/swagger");
 
 const app = express();
@@ -37,6 +39,9 @@ app.use("/api/chats", chatRoutes);
 app.use("/api/messages", messageRoutes);
 
 app.use("/api/upload", uploadRoutes);
+
+
+app.use("/api/notifications", notificationRoutes);
 
 // Swagger
 swaggerDocs(app);

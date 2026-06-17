@@ -1,17 +1,13 @@
 const Message = require("../models/Message");
 const Chat = require("../models/Chat");
+const Notification = require("../models/Notification");
+const User = require("../models/User");
 
 const { getIO } = require("../config/socket");
 
 exports.sendMessage = async (req, res) => {
   try {
-
-    const {
-      content,
-      chatId,
-      messageType,
-      mediaUrl,
-    } = req.body;
+    const { content, chatId, messageType, mediaUrl } = req.body;
 
     if (!chatId) {
       return res.status(400).json({
@@ -30,10 +26,7 @@ exports.sendMessage = async (req, res) => {
       seenBy: [req.user._id],
     });
 
-    message = await message.populate(
-      "sender",
-      "name email profilePic"
-    );
+    message = await message.populate("sender", "name email profilePic");
 
     message = await message.populate("chat");
 
@@ -41,6 +34,12 @@ exports.sendMessage = async (req, res) => {
     await Chat.findByIdAndUpdate(chatId, {
       latestMessage: message._id,
     });
+
+    const chat = await Chat.findById(chatId);
+
+    const receivers = chat.users.filter(
+      (user) => user.toString() !== req.user._id.toString(),
+    );
 
     // Socket emit
     const io = getIO();
@@ -52,19 +51,79 @@ exports.sendMessage = async (req, res) => {
       message,
     });
 
-  } catch (error) {
 
+for(const receiverId of receivers){
+
+  const notification =
+  await Notification.create({
+
+    sender:req.user._id,
+
+    receiver:receiverId,
+
+    chat:chatId,
+
+    message:message._id,
+
+    title:"New Message",
+
+    body:content,
+
+  });
+
+  io.to(receiverId.toString())
+  .emit(
+    "new_notification",
+    notification
+  );
+}
+
+
+
+const io = getIO();
+
+io.to(chatId)
+.emit(
+  "receive_message",
+  message
+);
+
+for(const receiverId of receivers){
+
+  const notification =
+  await Notification.create({
+
+    sender:req.user._id,
+
+    receiver:receiverId,
+
+    chat:chatId,
+
+    message:message._id,
+
+    title:"New Message",
+
+    body:content,
+
+  });
+
+  io.to(receiverId.toString())
+  .emit(
+    "new_notification",
+    notification
+  );
+}
+
+  } catch (error) {
     res.status(500).json({
       success: false,
       message: error.message,
     });
-
   }
 };
 
 exports.getMessages = async (req, res) => {
   try {
-
     const page = Number(req.query.page) || 1;
 
     const limit = 20;
@@ -74,10 +133,7 @@ exports.getMessages = async (req, res) => {
     const messages = await Message.find({
       chat: req.params.chatId,
     })
-      .populate(
-        "sender",
-        "name email profilePic"
-      )
+      .populate("sender", "name email profilePic")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
@@ -86,25 +142,19 @@ exports.getMessages = async (req, res) => {
       success: true,
       messages: messages.reverse(),
     });
-
   } catch (error) {
-
     res.status(500).json({
       success: false,
       message: error.message,
     });
-
   }
 };
 
 exports.editMessage = async (req, res) => {
   try {
-
     const { content } = req.body;
 
-    const message = await Message.findById(
-      req.params.messageId
-    );
+    const message = await Message.findById(req.params.messageId);
 
     if (!message) {
       return res.status(404).json({
@@ -114,10 +164,7 @@ exports.editMessage = async (req, res) => {
     }
 
     // Only sender can edit
-    if (
-      message.sender.toString() !==
-      req.user._id.toString()
-    ) {
+    if (message.sender.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
         message: "Not authorized",
@@ -134,23 +181,17 @@ exports.editMessage = async (req, res) => {
       success: true,
       message,
     });
-
   } catch (error) {
-
     res.status(500).json({
       success: false,
       message: error.message,
     });
-
   }
 };
 
 exports.deleteMessage = async (req, res) => {
   try {
-
-    const message = await Message.findById(
-      req.params.messageId
-    );
+    const message = await Message.findById(req.params.messageId);
 
     if (!message) {
       return res.status(404).json({
@@ -160,10 +201,7 @@ exports.deleteMessage = async (req, res) => {
     }
 
     // Only sender can delete
-    if (
-      message.sender.toString() !==
-      req.user._id.toString()
-    ) {
+    if (message.sender.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
         message: "Not authorized",
@@ -176,20 +214,16 @@ exports.deleteMessage = async (req, res) => {
       success: true,
       message: "Message deleted",
     });
-
   } catch (error) {
-
     res.status(500).json({
       success: false,
       message: error.message,
     });
-
   }
 };
 
 exports.markAsSeen = async (req, res) => {
   try {
-
     const { messageId } = req.params;
 
     const message = await Message.findById(messageId);
@@ -200,9 +234,7 @@ exports.markAsSeen = async (req, res) => {
       });
     }
 
-    if (
-      !message.seenBy.includes(req.user._id)
-    ) {
+    if (!message.seenBy.includes(req.user._id)) {
       message.seenBy.push(req.user._id);
     }
 
@@ -210,23 +242,17 @@ exports.markAsSeen = async (req, res) => {
 
     const io = getIO();
 
-    io.to(message.chat.toString()).emit(
-      "message_seen",
-      {
-        messageId,
-        userId: req.user._id,
-      }
-    );
+    io.to(message.chat.toString()).emit("message_seen", {
+      messageId,
+      userId: req.user._id,
+    });
 
     res.status(200).json({
       success: true,
     });
-
   } catch (error) {
-
     res.status(500).json({
       message: error.message,
     });
-
   }
 };
