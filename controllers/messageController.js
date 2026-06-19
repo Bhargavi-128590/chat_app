@@ -28,9 +28,6 @@ exports.sendMessage = async (req, res) => {
 
     message = await message.populate("sender", "name email profilePic");
 
-    message = await message.populate("chat");
-
-    // Update latest message
     await Chat.findByIdAndUpdate(chatId, {
       latestMessage: message._id,
     });
@@ -41,81 +38,42 @@ exports.sendMessage = async (req, res) => {
       (user) => user.toString() !== req.user._id.toString(),
     );
 
-    // Socket emit
+    // SOCKET
     const io = getIO();
 
     io.to(chatId).emit("receive_message", message);
 
-    res.status(201).json({
+    // NOTIFICATIONS
+    for (const receiverId of receivers) {
+      const notification = await Notification.create({
+        sender: req.user._id,
+
+        receiver: receiverId,
+
+        chat: chatId,
+
+        message: message._id,
+
+        title: "New Message",
+
+        body: content,
+      });
+
+      const populatedNotification = await Notification.findById(
+        notification._id,
+      ).populate("sender", "name profilePic");
+
+      io.to(receiverId.toString()).emit(
+        "new_notification",
+        populatedNotification,
+      );
+    }
+    return res.status(201).json({
       success: true,
       message,
     });
-
-
-for(const receiverId of receivers){
-
-  const notification =
-  await Notification.create({
-
-    sender:req.user._id,
-
-    receiver:receiverId,
-
-    chat:chatId,
-
-    message:message._id,
-
-    title:"New Message",
-
-    body:content,
-
-  });
-
-  io.to(receiverId.toString())
-  .emit(
-    "new_notification",
-    notification
-  );
-}
-
-
-
-const io = getIO();
-
-io.to(chatId)
-.emit(
-  "receive_message",
-  message
-);
-
-for(const receiverId of receivers){
-
-  const notification =
-  await Notification.create({
-
-    sender:req.user._id,
-
-    receiver:receiverId,
-
-    chat:chatId,
-
-    message:message._id,
-
-    title:"New Message",
-
-    body:content,
-
-  });
-
-  io.to(receiverId.toString())
-  .emit(
-    "new_notification",
-    notification
-  );
-}
-
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: error.message,
     });
@@ -224,13 +182,15 @@ exports.deleteMessage = async (req, res) => {
 
 exports.markAsSeen = async (req, res) => {
   try {
+
     const { messageId } = req.params;
 
     const message = await Message.findById(messageId);
 
     if (!message) {
       return res.status(404).json({
-        message: "Message not found",
+        success: false,
+        message: "Message not found"
       });
     }
 
@@ -242,17 +202,24 @@ exports.markAsSeen = async (req, res) => {
 
     const io = getIO();
 
-    io.to(message.chat.toString()).emit("message_seen", {
-      messageId,
-      userId: req.user._id,
-    });
+    io.to(message.chat.toString()).emit(
+      "message_seen",
+      {
+        messageId,
+        userId: req.user._id
+      }
+    );
 
     res.status(200).json({
-      success: true,
+      success: true
     });
+
   } catch (error) {
+
     res.status(500).json({
-      message: error.message,
+      success: false,
+      message: error.message
     });
+
   }
 };

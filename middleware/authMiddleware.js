@@ -1,47 +1,47 @@
 const jwt = require("jsonwebtoken");
-
 const User = require("../models/User");
 
 module.exports = async (req, res, next) => {
-  try {
+  console.log("AUTH MIDDLEWARE");
 
+  try {
     let token;
 
-    // Check authorization header
     if (
       req.headers.authorization &&
       req.headers.authorization.startsWith("Bearer")
     ) {
-
-      // Extract token
       token = req.headers.authorization.split(" ")[1];
 
-      // Verify token
-      const decoded = jwt.verify(
-        token,
-        process.env.JWT_SECRET
-      );
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-      // Get user from DB
-      req.user = await User.findById(
-        decoded.id
-      ).select("-otp");
+console.log("Decoded");
+console.log(decoded);
 
-      next();
 
-    } else {
+      const user = await User.findById(decoded.id).select("-otp");
 
-      return res.status(401).json({
-        message: "No token provided",
-      });
+console.log("User");
+console.log(user);
 
+      if (!user) {
+        return res.status(401).json({
+          message: "User not found",
+        });
+      }
+
+      req.user = user;
+
+      return next();
     }
 
-  } catch (error) {
+    return res.status(401).json({
+      message: "No token provided",
+    });
 
+  } catch (error) {
     return res.status(401).json({
       message: "Invalid token",
     });
-
   }
 };

@@ -42,6 +42,7 @@ app.use("/api/upload", uploadRoutes);
 
 
 app.use("/api/notifications", notificationRoutes);
+console.log("Notification Routes Loaded");
 
 // Swagger
 swaggerDocs(app);
@@ -49,6 +50,10 @@ swaggerDocs(app);
 // Default route
 app.get("/", (req, res) => {
   res.send("Chat API Running");
+});
+
+app.get("/test", (req, res) => {
+  res.send("TEST WORKING");
 });
 
 module.exports = app;

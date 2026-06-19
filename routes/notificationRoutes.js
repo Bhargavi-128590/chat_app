@@ -6,6 +6,7 @@ const {
   getNotifications,
   markAsRead,
 } = require("../controllers/notificationController");
+const authMiddleware = require("../middleware/authMiddleware");
 
 /**
  * @swagger
@@ -21,7 +22,7 @@ const {
  *       500:
  *         description: Server error
  */
-router.get("/", getNotifications);
+router.get("/",authMiddleware, getNotifications);
 
 /**
  * @swagger
@@ -46,6 +47,6 @@ router.get("/", getNotifications);
  *       500:
  *         description: Server error
  */
-router.patch("/:id/read", markAsRead);
+router.patch("/:id/read", authMiddleware, markAsRead);
 
 module.exports = router;

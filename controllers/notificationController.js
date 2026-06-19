@@ -3,8 +3,10 @@ require("../models/Notification");
 
 exports.getNotifications =
 async(req,res)=>{
-
+ console.log("GET NOTIFICATIONS CALLED");
   try{
+     console.log("req.user");
+    console.log(req.user);
 
     const notifications =
     await Notification.find({
