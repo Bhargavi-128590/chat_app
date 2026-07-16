@@ -1,89 +1,57 @@
-const Notification =
-require("../models/Notification");
+const Notification = require("../models/Notification");
 
-exports.getNotifications =
-async(req,res)=>{
- console.log("GET NOTIFICATIONS CALLED");
-  try{
-     console.log("req.user");
+exports.getNotifications = async (req, res) => {
+  console.log("GET NOTIFICATIONS CALLED");
+  try {
+    console.log("req.user");
     console.log(req.user);
 
-    const notifications =
-    await Notification.find({
-
-      receiver:req.user._id
-
+    const notifications = await Notification.find({
+      receiver: req.user._id,
     })
-    .populate(
-      "sender",
-      "name profilePic"
-    )
-    .sort({
-      createdAt:-1
-    });
+      .populate("sender", "name profilePic")
+      .sort({
+        createdAt: -1,
+      });
 
     res.status(200).json({
+      success: true,
 
-      success:true,
-
-      notifications
-
+      notifications,
     });
-
-  }catch(error){
-
+  } catch (error) {
     res.status(500).json({
+      success: false,
 
-      success:false,
-
-      message:error.message
-
+      message: error.message,
     });
-
   }
-
 };
 
-
-
-exports.markAsRead =
-async(req,res)=>{
-
-  try{
-
-    const notification =
-    await Notification.findByIdAndUpdate(
-
+exports.markAsRead = async (req, res) => {
+  try {
+    const notification = await Notification.findByIdAndUpdate(
       req.params.id,
 
       {
-        isRead:true
+        isRead: true,
       },
 
       {
-        new:true
-      }
-
+        new: true,
+      },
     );
 
     res.status(200).json({
+      success: true,
 
-      success:true,
-
-      notification
-
+      notification,
     });
-
-  }catch(error){
-
+  } catch (error) {
     res.status(500).json({
+      success: false,
 
-      success:false,
-
-      message:error.message
-
+      message: error.message,
     });
-
   }
-
 };

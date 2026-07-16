@@ -54,10 +54,14 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    fcmToken: {
+      type: String,
+      default:null
+    },
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 module.exports = mongoose.model("User", userSchema);

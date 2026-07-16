@@ -28,6 +28,7 @@ app.use(express.json());
 
 app.use(express.urlencoded({ extended: true }));
 
+
 // Static uploads folder
 app.use("/uploads", express.static("uploads"));
 

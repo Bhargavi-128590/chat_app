@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const auth = require("../middleware/authMiddleware");
 const controller = require("../controllers/authController");
+const {saveFcmToken} = require("../controllers/authController");
 
 /**
  * @swagger
@@ -162,4 +163,28 @@ router.post("/auto-login", controller.autoLogin);
  */
 router.post("/logout", auth, controller.logout);
 
+
+
+/**
+ * @swagger
+ * /api/auth/save-fcm-token:
+ *   post:
+ *     summary: Save FCM Token
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               token:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Token saved
+ */
+router.post("/save-fcm-token", auth, saveFcmToken);
 module.exports = router;
