@@ -55,6 +55,26 @@ router.get("/", auth, controller.getChats);
 
 /**
  * @swagger
+ * /api/chats/contacts:
+ *   get:
+ *     summary: Get all contacts for one-to-one chat
+ *     tags: [Chats]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search contacts by name or email
+ *     responses:
+ *       200:
+ *         description: Contacts fetched successfully
+ */
+router.get("/contacts", auth, controller.getContacts);
+
+/**
+ * @swagger
  * /api/chats/{chatId}:
  *   get:
  *     summary: Get single chat
@@ -98,10 +118,6 @@ router.get("/:chatId", auth, controller.getSingleChat);
  *       201:
  *         description: Group created successfully
  */
-router.post(
-  "/group",
-  auth,
-  controller.createGroupChat
-);
+router.post("/group", auth, controller.createGroupChat);
 
 module.exports = router;

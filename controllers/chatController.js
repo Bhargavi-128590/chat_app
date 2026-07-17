@@ -1,4 +1,5 @@
 const Chat = require("../models/Chat");
+const User = require("../models/User");
 
 exports.accessChat = async (req, res) => {
   try {
@@ -40,27 +41,82 @@ exports.accessChat = async (req, res) => {
       users: [req.user._id, userId],
     });
 
-    const fullChat = await Chat.findById(newChat._id)
-      .populate("users", "-otp");
+    const fullChat = await Chat.findById(newChat._id).populate("users", "-otp");
 
     res.status(201).json({
       success: true,
       chat: fullChat,
     });
-
   } catch (error) {
-
     res.status(500).json({
       success: false,
       message: error.message,
     });
+  }
+};
 
+exports.getContacts = async (req, res) => {
+  try {
+    const search = req.query.search || "";
+    const searchText = search.trim();
+
+    const filter = {
+      _id: { $ne: req.user._id },
+    };
+
+    if (searchText) {
+      filter.$or = [
+        { name: { $regex: searchText, $options: "i" } },
+        { email: { $regex: searchText, $options: "i" } },
+      ];
+    }
+
+    const users = await User.find(filter)
+      .select("name email profilePic isOnline lastSeen isVerified")
+      .sort({ name: 1, email: 1 });
+
+    const userChats = await Chat.find({
+      users: { $in: [req.user._id] },
+      isGroupChat: false,
+    }).select("users");
+
+    const chatMap = new Map();
+
+    userChats.forEach((chat) => {
+      const otherUser = chat.users.find(
+        (userId) => userId.toString() !== req.user._id.toString(),
+      );
+
+      if (otherUser) {
+        chatMap.set(otherUser.toString(), chat._id.toString());
+      }
+    });
+
+    const contacts = users.map((user) => ({
+      _id: user._id,
+      name: user.name || user.email,
+      email: user.email,
+      profilePic: user.profilePic,
+      isOnline: user.isOnline,
+      lastSeen: user.lastSeen,
+      isVerified: user.isVerified,
+      chatId: chatMap.get(user._id.toString()) || null,
+    }));
+
+    res.status(200).json({
+      success: true,
+      contacts,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
 
 exports.getChats = async (req, res) => {
   try {
-
     const chats = await Chat.find({
       users: {
         $in: [req.user._id],
@@ -80,20 +136,16 @@ exports.getChats = async (req, res) => {
       success: true,
       chats,
     });
-
   } catch (error) {
-
     res.status(500).json({
       success: false,
       message: error.message,
     });
-
   }
 };
 
 exports.getSingleChat = async (req, res) => {
   try {
-
     const chat = await Chat.findById(req.params.chatId)
       .populate("users", "-otp")
       .populate("groupAdmin", "name email profilePic")
@@ -116,20 +168,16 @@ exports.getSingleChat = async (req, res) => {
       success: true,
       chat,
     });
-
   } catch (error) {
-
     res.status(500).json({
       success: false,
       message: error.message,
     });
-
   }
 };
 
 exports.createGroupChat = async (req, res) => {
   try {
-
     const { users, groupName } = req.body;
 
     if (!users || !groupName) {
@@ -149,62 +197,50 @@ exports.createGroupChat = async (req, res) => {
       groupAdmin: req.user._id,
     });
 
-    const fullGroup = await Chat.findById(
-      groupChat._id
-    )
+    const fullGroup = await Chat.findById(groupChat._id)
       .populate("users", "-otp")
-      .populate(
-        "groupAdmin",
-        "name email profilePic"
-      );
+      .populate("groupAdmin", "name email profilePic");
 
     res.status(201).json(fullGroup);
-
   } catch (error) {
-
     res.status(500).json({
       message: error.message,
     });
-
   }
 };
 
 exports.addToGroup = async (req, res) => {
-
   const { chatId, userId } = req.body;
 
-  const updatedChat =
-    await Chat.findByIdAndUpdate(
-      chatId,
-      {
-        $push: {
-          users: userId,
-        },
+  const updatedChat = await Chat.findByIdAndUpdate(
+    chatId,
+    {
+      $push: {
+        users: userId,
       },
-      {
-        new: true,
-      }
-    );
+    },
+    {
+      new: true,
+    },
+  );
 
   res.json(updatedChat);
 };
 
 exports.removeFromGroup = async (req, res) => {
-
   const { chatId, userId } = req.body;
 
-  const updatedChat =
-    await Chat.findByIdAndUpdate(
-      chatId,
-      {
-        $pull: {
-          users: userId,
-        },
+  const updatedChat = await Chat.findByIdAndUpdate(
+    chatId,
+    {
+      $pull: {
+        users: userId,
       },
-      {
-        new: true,
-      }
-    );
+    },
+    {
+      new: true,
+    },
+  );
 
   res.json(updatedChat);
 };
