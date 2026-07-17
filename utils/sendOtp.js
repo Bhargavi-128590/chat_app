@@ -19,26 +19,14 @@ function formatResendError(error) {
     message.includes("You can only send testing emails") ||
     message.includes("verify a domain")
   ) {
-    return `Resend error: ${message}. To send OTPs to other recipients, verify a domain in Resend and set RESEND_FROM_EMAIL to an email from that domain.`;
+    return `Resend error: ${message}. To send OTPs to other recipients, verify a domain in Resend and use a sender address from that domain.`;
   }
 
   return message;
 }
 
 async function sendWithResend(recipient, otp) {
-  const fromEmail = process.env.RESEND_FROM_EMAIL;
-
-  if (!fromEmail) {
-    throw new Error(
-      "RESEND_FROM_EMAIL is not configured. Set a verified sender email for Resend.",
-    );
-  }
-
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fromEmail)) {
-    throw new Error(
-      `RESEND_FROM_EMAIL must be a full email address like 'no-reply@yourdomain.com'. Current value: ${fromEmail}`,
-    );
-  }
+  const fromEmail = "onboarding@resend.dev";
 
   const resend = getResendClient();
 
