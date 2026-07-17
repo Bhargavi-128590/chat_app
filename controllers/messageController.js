@@ -275,6 +275,13 @@ exports.sendMessage = async (req, res) => {
 
     const chat = await Chat.findById(chatId);
 
+    if (!chat) {
+      return res.status(404).json({
+        success: false,
+        message: "Chat not found",
+      });
+    }
+
     const receivers = chat.users.filter(
       (u) => u.toString() !== req.user._id.toString(),
     );
@@ -310,7 +317,6 @@ Real time message
 
         "name profilePic",
       );
-
 
       io.to(receiverId.toString())
 

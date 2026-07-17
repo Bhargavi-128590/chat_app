@@ -268,10 +268,11 @@ exports.sendOtp = async (req, res) => {
     try {
       await sendOtp(email, otp);
     } catch (mailError) {
-      console.log("Mail sending error:", mailError);
+      console.error("Mail sending error:", mailError.message || mailError);
       return res.status(500).json({
         success: false,
-        message: "Failed to send OTP. Please try again later.",
+        message:
+          mailError.message || "Failed to send OTP. Please try again later.",
       });
     }
 
