@@ -11,6 +11,19 @@ function getResendClient() {
   return new Resend(apiKey);
 }
 
+function formatResendError(error, recipient, fromEmail) {
+  const message = error?.message || String(error);
+
+  if (
+    message.includes("You can only send testing emails") ||
+    message.includes("verify a domain")
+  ) {
+    return `Resend error: ${message}. To send OTPs to other recipients, verify a domain in Resend and set RESEND_FROM_EMAIL to an email from that domain, or configure SMTP as a fallback.`;
+  }
+
+  return message;
+}
+
 async function sendWithResend(recipient, otp) {
   const fromEmail = process.env.RESEND_FROM_EMAIL;
 
@@ -24,26 +37,32 @@ async function sendWithResend(recipient, otp) {
 
   console.log(`Sending OTP from ${fromEmail} to ${recipient} via Resend`);
 
-  const response = await resend.emails.send({
-    from: fromEmail,
-    to: recipient,
-    subject: "Your OTP Code",
-    html: `
+  try {
+    const response = await resend.emails.send({
+      from: fromEmail,
+      to: recipient,
+      subject: "Your OTP Code",
+      html: `
       <h2>OTP Verification</h2>
       <p>Your OTP is:</p>
       <h1 style="color:blue;">${otp}</h1>
       <p>This OTP expires in 5 minutes.</p>
     `,
-  });
+    });
 
-  if (response?.error) {
-    throw new Error(response.error.message || "Resend returned an error");
+    if (response?.error) {
+      throw new Error(response.error.message || "Resend returned an error");
+    }
+
+    console.log(
+      "OTP email sent via Resend",
+      response?.data?.id || response?.id || "no-id",
+    );
+  } catch (error) {
+    const formatted = formatResendError(error, recipient, fromEmail);
+    console.error("Resend send failed:", formatted);
+    throw new Error(formatted);
   }
-
-  console.log(
-    "OTP email sent via Resend",
-    response?.data?.id || response?.id || "no-id",
-  );
 }
 
 async function sendWithSmtp(recipient, otp) {
