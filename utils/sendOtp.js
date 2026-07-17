@@ -34,6 +34,12 @@ async function sendWithResend(recipient, otp) {
     );
   }
 
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fromEmail)) {
+    throw new Error(
+      `RESEND_FROM_EMAIL must be a full email address like 'no-reply@yourdomain.com'. Current value: ${fromEmail}`,
+    );
+  }
+
   const resend = getResendClient();
 
   console.log(`Sending OTP from ${fromEmail} to ${recipient} via Resend`);
