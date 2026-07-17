@@ -233,6 +233,14 @@ exports.sendOtp = async (req, res) => {
   try {
     const { email } = req.body;
 
+    // Restrict login to @gmail.com only
+    if (!email.endsWith("@gmail.com")) {
+      return res.status(403).json({
+        success: false,
+        message: "Only @gmail.com emails are allowed",
+      });
+    }
+
     let user = await User.findOne({ email });
 
     if (!user) {
@@ -244,22 +252,28 @@ exports.sendOtp = async (req, res) => {
 
     console.log("Before Redis SET");
 
-console.log("redisClient =", redisClient);
-console.log("redisClient type =", typeof redisClient);
+    console.log("redisClient =", redisClient);
+    console.log("redisClient type =", typeof redisClient);
 
-  console.log("redisClient value:", redisClient);
+    console.log("redisClient value:", redisClient);
 
     const result = await redisClient.set(`otp:${email}`, otp, { EX: 300 });
 
-
-    
     console.log("Redis Result:", result);
 
     const value = await redisClient.get(`otp:${email}`);
 
     console.log("Redis Value:", value);
 
-    await sendOtp(email, otp);
+    try {
+      await sendOtp(email, otp);
+    } catch (mailError) {
+      console.log("Mail sending error:", mailError);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to send OTP. Please try again later.",
+      });
+    }
 
     res.status(200).json({
       success: true,
@@ -375,6 +389,14 @@ exports.autoLogin = async (req, res) => {
   try {
     const { email } = req.body;
 
+    // Restrict login to @gmail.com only
+    if (!email.endsWith("@gmail.com")) {
+      return res.status(403).json({
+        success: false,
+        message: "Only @gmail.com emails are allowed",
+      });
+    }
+
     const cachedUser = await redisClient.get(`user:${email}`);
 
     if (cachedUser) {
@@ -461,8 +483,6 @@ exports.logout = async (req, res) => {
     });
   }
 };
-
-
 
 exports.saveFcmToken = async (req, res) => {
   try {
