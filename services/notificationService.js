@@ -34,21 +34,25 @@ const createNotification = async ({
   const user = await User.findById(recipient);
 
   if (user?.fcmToken) {
-    await sendFCM(
-      user.fcmToken,
+    try {
+      await sendFCM(
+        user.fcmToken,
 
-      title,
+        title,
 
-      body,
+        body,
 
-      {
-        type: "MESSAGE",
+        {
+          type: "MESSAGE",
 
-        senderId: String(sender),
+          senderId: String(sender),
 
-        chatId: String(chat),
-      },
-    );
+          chatId: String(chat),
+        },
+      );
+    } catch (fcmError) {
+      console.error("FCM push failed for user", recipient, fcmError);
+    }
   }
 
   return notification;

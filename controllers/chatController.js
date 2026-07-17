@@ -1,5 +1,6 @@
 const Chat = require("../models/Chat");
 const User = require("../models/User");
+const { mapContactsToUsers } = require("../utils/contactMatcher");
 
 exports.accessChat = async (req, res) => {
   try {
@@ -59,12 +60,21 @@ exports.getContacts = async (req, res) => {
   try {
     const search = req.query.search || "";
     const searchText = search.trim();
+    const incomingContacts = req.body?.contacts || req.query?.contacts || [];
+
+    let contactsToMatch = [];
+
+    if (Array.isArray(incomingContacts) && incomingContacts.length > 0) {
+      contactsToMatch = incomingContacts;
+    } else if (searchText) {
+      contactsToMatch = [{ name: searchText, email: searchText }];
+    }
 
     const filter = {
       _id: { $ne: req.user._id },
     };
 
-    if (searchText) {
+    if (searchText && contactsToMatch.length === 0) {
       filter.$or = [
         { name: { $regex: searchText, $options: "i" } },
         { email: { $regex: searchText, $options: "i" } },
@@ -72,35 +82,34 @@ exports.getContacts = async (req, res) => {
     }
 
     const users = await User.find(filter)
-      .select("name email profilePic isOnline lastSeen isVerified")
+      .select("name email profilePic isOnline lastSeen isVerified phone")
       .sort({ name: 1, email: 1 });
 
-    const userChats = await Chat.find({
-      users: { $in: [req.user._id] },
-      isGroupChat: false,
-    }).select("users");
+    const matchedContacts = mapContactsToUsers(
+      contactsToMatch,
+      users,
+      req.user._id,
+    );
 
-    const chatMap = new Map();
-
-    userChats.forEach((chat) => {
-      const otherUser = chat.users.find(
-        (userId) => userId.toString() !== req.user._id.toString(),
-      );
-
-      if (otherUser) {
-        chatMap.set(otherUser.toString(), chat._id.toString());
-      }
-    });
+    if (contactsToMatch.length > 0) {
+      return res.status(200).json({
+        success: true,
+        contacts: matchedContacts,
+      });
+    }
 
     const contacts = users.map((user) => ({
       _id: user._id,
       name: user.name || user.email,
       email: user.email,
+      phone: user.phone || "",
       profilePic: user.profilePic,
       isOnline: user.isOnline,
       lastSeen: user.lastSeen,
       isVerified: user.isVerified,
-      chatId: chatMap.get(user._id.toString()) || null,
+      isAppUser: true,
+      userId: user._id,
+      chatId: null,
     }));
 
     res.status(200).json({

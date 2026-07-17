@@ -20,15 +20,28 @@ const sendFCM = async (
       },
 
       data,
+
+      android: {
+        priority: "high",
+      },
+
+      apns: {
+        headers: {
+          "apns-priority": "10",
+        },
+      },
     };
 
     const response = await admin.messaging().send(message);
 
-    console.log(response);
+    if (process.env.NODE_ENV === "development") {
+      console.log("FCM response:", response);
+    }
 
     return response;
   } catch (err) {
-    console.log(err);
+    console.error("sendFCM error:", err);
+    return null;
   }
 };
 

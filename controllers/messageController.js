@@ -243,6 +243,22 @@ exports.sendMessage = async (req, res) => {
       });
     }
 
+    const chat = await Chat.findById(chatId);
+
+    if (!chat) {
+      return res.status(404).json({
+        success: false,
+        message: "Chat not found",
+      });
+    }
+
+    if (!chat.users.some((u) => u.toString() === req.user._id.toString())) {
+      return res.status(403).json({
+        success: false,
+        message: "Not authorized to send in this chat",
+      });
+    }
+
     let message = await Message.create({
       sender: req.user._id,
 
@@ -273,15 +289,6 @@ exports.sendMessage = async (req, res) => {
       },
     );
 
-    const chat = await Chat.findById(chatId);
-
-    if (!chat) {
-      return res.status(404).json({
-        success: false,
-        message: "Chat not found",
-      });
-    }
-
     const receivers = chat.users.filter(
       (u) => u.toString() !== req.user._id.toString(),
     );
@@ -298,33 +305,37 @@ Real time message
     );
 
     for (const receiverId of receivers) {
-      const notification = await createNotification({
-        recipient: receiverId,
+      try {
+        const notification = await createNotification({
+          recipient: receiverId,
 
-        sender: req.user._id,
+          sender: req.user._id,
 
-        title: "New Message",
+          title: "New Message",
 
-        body: content || "New message",
+          body: content || "New message",
 
-        chat: chatId,
+          chat: chatId,
 
-        message: message._id,
-      });
+          message: message._id,
+        });
 
-      const populatedNotification = await notification.populate(
-        "sender",
+        const populatedNotification = await notification.populate(
+          "sender",
 
-        "name profilePic",
-      );
-
-      io.to(receiverId.toString())
-
-        .emit(
-          "new_notification",
-
-          populatedNotification,
+          "name profilePic",
         );
+
+        io.to(receiverId.toString())
+
+          .emit(
+            "new_notification",
+
+            populatedNotification,
+          );
+      } catch (notificationError) {
+        console.error("Notification delivery failed:", notificationError);
+      }
     }
 
     return res.status(201).json({
