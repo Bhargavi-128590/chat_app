@@ -11,8 +11,9 @@ function getResendClient() {
   return new Resend(apiKey);
 }
 
-function formatResendError(error, recipient, fromEmail) {
-  const message = error?.message || String(error);
+function formatResendError(error) {
+  let message = error?.message || String(error);
+  message = message.trim().replace(/[.]+$/g, "");
 
   if (
     message.includes("You can only send testing emails") ||
