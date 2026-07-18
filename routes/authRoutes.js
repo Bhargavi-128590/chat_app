@@ -6,16 +6,9 @@ const {saveFcmToken} = require("../controllers/authController");
 
 /**
  * @swagger
- * tags:
- *   name: Auth
- *   description: OTP Authentication APIs
- */
-
-/**
- * @swagger
  * /api/auth/send-otp:
  *   post:
- *     summary: Send OTP to user email
+ *     summary: Send OTP to user email or phone number
  *     tags: [Auth]
  *     requestBody:
  *       required: true
@@ -24,11 +17,11 @@ const {saveFcmToken} = require("../controllers/authController");
  *           schema:
  *             type: object
  *             required:
- *               - email
+ *               - contact
  *             properties:
- *               email:
+ *               contact:
  *                 type: string
- *                 example: test@gmail.com
+ *                 example: user@example.com or +1234567890
  *     responses:
  *       200:
  *         description: OTP sent successfully
@@ -44,7 +37,7 @@ router.post("/send-otp", controller.sendOtp);
  * @swagger
  * /api/auth/resend-otp:
  *   post:
- *     summary: Resend OTP with cooldown and limit
+ *     summary: Resend OTP to user email or phone number
  *     tags: [Auth]
  *     requestBody:
  *       required: true
@@ -53,11 +46,11 @@ router.post("/send-otp", controller.sendOtp);
  *           schema:
  *             type: object
  *             required:
- *               - email
+ *               - contact
  *             properties:
- *               email:
+ *               contact:
  *                 type: string
- *                 example: test@gmail.com
+ *                 example: user@example.com or +1234567890
  *     responses:
  *       200:
  *         description: OTP resent successfully
@@ -84,12 +77,12 @@ router.post("/resend-otp", controller.resendOtp);
  *           schema:
  *             type: object
  *             required:
- *               - email
+ *               - contact
  *               - otp
  *             properties:
- *               email:
+ *               contact:
  *                 type: string
- *                 example: test@gmail.com
+ *                 example: user@example.com or +1234567890
  *               otp:
  *                 type: string
  *                 example: "123456"
@@ -101,7 +94,8 @@ router.post("/resend-otp", controller.resendOtp);
  *             example:
  *               token: jwt_token_here
  *               user:
- *                 email: test@gmail.com
+ *                 email: user@example.com
+ *                 phone: null
  *                 isVerified: true
  *       400:
  *         description: Invalid or expired OTP
@@ -121,11 +115,11 @@ router.post("/verify-otp", controller.verifyOtp);
  *           schema:
  *             type: object
  *             required:
- *               - email
+ *               - contact
  *             properties:
- *               email:
+ *               contact:
  *                 type: string
- *                 example: test@gmail.com
+ *                 example: user@example.com or +1234567890
  *     responses:
  *       200:
  *         description: Auto login success or OTP required
@@ -136,7 +130,7 @@ router.post("/verify-otp", controller.verifyOtp);
  *                 value:
  *                   token: jwt_token_here
  *                   user:
- *                     email: test@gmail.com
+ *                     email: user@example.com
  *               otpRequired:
  *                 value:
  *                   message: OTP required
@@ -163,8 +157,6 @@ router.post("/auto-login", controller.autoLogin);
  */
 router.post("/logout", auth, controller.logout);
 
-
-
 /**
  * @swagger
  * /api/auth/save-fcm-token:
@@ -187,57 +179,5 @@ router.post("/logout", auth, controller.logout);
  *         description: Token saved
  */
 router.post("/save-fcm-token", auth, saveFcmToken);
-
-/**
- * @swagger
- * /api/auth/send-phone-otp:
- *   post:
- *     summary: Send OTP to user phone number
- *     tags: [Auth]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - phone
- *             properties:
- *               phone:
- *                 type: string
- *                 example: "+1234567890"
- *     responses:
- *       200:
- *         description: OTP sent successfully
- */
-router.post("/send-phone-otp", controller.sendPhoneOtp);
-
-/**
- * @swagger
- * /api/auth/verify-phone-otp:
- *   post:
- *     summary: Verify Phone OTP and login
- *     tags: [Auth]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - phone
- *               - otp
- *             properties:
- *               phone:
- *                 type: string
- *                 example: "+1234567890"
- *               otp:
- *                 type: string
- *                 example: "123456"
- *     responses:
- *       200:
- *         description: OTP verified and user logged in
- */
-router.post("/verify-phone-otp", controller.verifyPhoneOtp);
 
 module.exports = router;

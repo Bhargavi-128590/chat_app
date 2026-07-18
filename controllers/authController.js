@@ -2,6 +2,38 @@ const User = require("../models/User");
 const { sendOtp } = require("../utils/sendOtp");
 const { generateToken } = require("../utils/jwt");
 const { redisClient } = require("../config/redis");
+
+const detectContactType = (input) => {
+  if (!input || typeof input !== "string") {
+    return { isValid: false };
+  }
+
+  const trimmed = input.trim();
+
+  // Try email regex
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (emailRegex.test(trimmed)) {
+    return {
+      isValid: true,
+      type: "email",
+      value: trimmed.toLowerCase(),
+    };
+  }
+
+  // Clean phone number (remove spaces, hyphens, brackets)
+  const cleanedPhone = trimmed.replace(/[\s\-\(\)]/g, "");
+  // Phone regex (e.g. +1234567890 or 1234567890)
+  const phoneRegex = /^\+?[1-9]\d{1,14}$/;
+  if (phoneRegex.test(cleanedPhone)) {
+    return {
+      isValid: true,
+      type: "phone",
+      value: cleanedPhone,
+    };
+  }
+
+  return { isValid: false };
+};
 // // Send OTP
 // exports.sendOtp = async (req, res) => {
 //   try {
@@ -231,47 +263,102 @@ const { redisClient } = require("../config/redis");
 
 exports.sendOtp = async (req, res) => {
   try {
-    const { email } = req.body;
+    const inputContact = req.body.contact || req.body.email || req.body.phone;
 
-    if (!email || typeof email !== "string") {
+    if (!inputContact || typeof inputContact !== "string") {
       return res.status(400).json({
         success: false,
-        message: "Email is required",
+        message: "Email or phone number is required",
       });
     }
 
-    const normalizedEmail = email.toLowerCase().trim();
+    const detection = detectContactType(inputContact);
+    if (!detection.isValid) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid email or phone number format",
+      });
+    }
 
-    let user = await User.findOne({ email: normalizedEmail });
+    const { type, value } = detection;
+    let user;
 
-    if (!user) {
-      user = new User({ email: normalizedEmail });
-      await user.save();
+    if (type === "email") {
+      user = await User.findOne({ email: value });
+      if (!user) {
+        user = new User({ email: value });
+        await user.save();
+      }
+    } else {
+      user = await User.findOne({ phone: value });
+      if (!user) {
+        user = new User({ phone: value });
+        await user.save();
+      }
+    }
+
+    // Rate limit cooldown (30 seconds)
+    const cooldown = await redisClient.get(`cooldown:${type}:${value}`);
+    if (cooldown) {
+      return res.status(429).json({
+        success: false,
+        message: "Please wait 30 seconds before requesting again",
+      });
     }
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    await redisClient.set(`otp:${normalizedEmail}`, otp, { EX: 300 });
+    // Store in Redis
+    await redisClient.set(`otp:${type}:${value}`, otp, { EX: 300 });
+    await redisClient.set(`cooldown:${type}:${value}`, "true", { EX: 30 });
 
-    try {
-      await sendOtp(normalizedEmail, otp);
-    } catch (mailError) {
-      console.error("Mail sending error:", mailError.message || mailError);
-      return res.status(500).json({
-        success: false,
-        message:
-          mailError.message || "Failed to send OTP. Please try again later.",
-      });
+    if (type === "email") {
+      try {
+        await sendOtp(value, otp);
+      } catch (mailError) {
+        console.error("Mail sending error:", mailError.message || mailError);
+        return res.status(500).json({
+          success: false,
+          message: mailError.message || "Failed to send OTP. Please try again later.",
+        });
+      }
+    } else {
+      // Send via Twilio SMS
+      const sid = process.env.TWILIO_ACCOUNT_SID;
+      const token = process.env.TWILIO_AUTH_TOKEN;
+      const from = process.env.TWILIO_PHONE_NUMBER;
+
+      if (sid && token && from) {
+        try {
+          const twilio = require("twilio")(sid, token);
+          await twilio.messages.create({
+            body: `Your Chat App OTP code is ${otp}. It expires in 5 minutes.`,
+            from: from,
+            to: value,
+          });
+          console.log(`SMS OTP sent via Twilio to ${value}`);
+        } catch (err) {
+          console.error("Twilio SMS send failed:", err);
+          return res.status(500).json({
+            success: false,
+            message: "Failed to send SMS OTP via Twilio. Please try again later.",
+          });
+        }
+      } else {
+        // Mock fallback
+        console.log("==========================================");
+        console.log(`[MOCK SMS OTP] To: ${value} | OTP: ${otp}`);
+        console.log("==========================================");
+      }
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: "OTP sent successfully",
     });
   } catch (error) {
     console.error("Send OTP error:", error);
-
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: error.message,
     });
@@ -280,18 +367,32 @@ exports.sendOtp = async (req, res) => {
 
 exports.verifyOtp = async (req, res) => {
   try {
-    const { email, otp } = req.body;
+    const inputContact = req.body.contact || req.body.email || req.body.phone;
+    const { otp } = req.body;
 
-    if (!email || !otp) {
+    if (!inputContact || !otp) {
       return res.status(400).json({
         success: false,
-        message: "Email and OTP are required",
+        message: "Contact identifier and OTP are required",
       });
     }
 
-    const normalizedEmail = String(email).toLowerCase().trim();
+    const detection = detectContactType(inputContact);
+    if (!detection.isValid) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid email or phone number format",
+      });
+    }
 
-    const user = await User.findOne({ email: normalizedEmail });
+    const { type, value } = detection;
+    let user;
+
+    if (type === "email") {
+      user = await User.findOne({ email: value });
+    } else {
+      user = await User.findOne({ phone: value });
+    }
 
     if (!user) {
       return res.status(404).json({
@@ -300,7 +401,7 @@ exports.verifyOtp = async (req, res) => {
       });
     }
 
-    const storedOtp = await redisClient.get(`otp:${normalizedEmail}`);
+    const storedOtp = await redisClient.get(`otp:${type}:${value}`);
 
     if (!storedOtp) {
       return res.status(400).json({
@@ -316,25 +417,25 @@ exports.verifyOtp = async (req, res) => {
       });
     }
 
-    await redisClient.del(`otp:${normalizedEmail}`);
+    await redisClient.del(`otp:${type}:${value}`);
 
     user.isVerified = true;
     user.loggedOut = false;
 
     await user.save();
 
-    await redisClient.set(`user:${email}`, JSON.stringify(user), { EX: 3600 });
+    await redisClient.set(`user:${value}`, JSON.stringify(user), { EX: 3600 });
 
     const token = generateToken(user);
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: "Login successful",
       token,
       user,
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: error.message,
     });
@@ -343,18 +444,31 @@ exports.verifyOtp = async (req, res) => {
 
 exports.resendOtp = async (req, res) => {
   try {
-    const { email } = req.body;
+    const inputContact = req.body.contact || req.body.email || req.body.phone;
 
-    if (!email || typeof email !== "string") {
+    if (!inputContact || typeof inputContact !== "string") {
       return res.status(400).json({
         success: false,
-        message: "Email is required",
+        message: "Email or phone number is required",
       });
     }
 
-    const normalizedEmail = email.toLowerCase().trim();
+    const detection = detectContactType(inputContact);
+    if (!detection.isValid) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid email or phone number format",
+      });
+    }
 
-    const user = await User.findOne({ email: normalizedEmail });
+    const { type, value } = detection;
+    let user;
+
+    if (type === "email") {
+      user = await User.findOne({ email: value });
+    } else {
+      user = await User.findOne({ phone: value });
+    }
 
     if (!user) {
       return res.status(404).json({
@@ -363,7 +477,7 @@ exports.resendOtp = async (req, res) => {
       });
     }
 
-    const cooldown = await redisClient.get(`cooldown:${normalizedEmail}`);
+    const cooldown = await redisClient.get(`cooldown:${type}:${value}`);
 
     if (cooldown) {
       return res.status(400).json({
@@ -374,18 +488,39 @@ exports.resendOtp = async (req, res) => {
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    await redisClient.set(`otp:${normalizedEmail}`, otp, { EX: 300 });
+    await redisClient.set(`otp:${type}:${value}`, otp, { EX: 300 });
+    await redisClient.set(`cooldown:${type}:${value}`, "true", { EX: 30 });
 
-    await redisClient.set(`cooldown:${normalizedEmail}`, "true", { EX: 30 });
+    if (type === "email") {
+      await sendOtp(value, otp);
+    } else {
+      // Send via Twilio SMS
+      const sid = process.env.TWILIO_ACCOUNT_SID;
+      const token = process.env.TWILIO_AUTH_TOKEN;
+      const from = process.env.TWILIO_PHONE_NUMBER;
 
-    await sendOtp(normalizedEmail, otp);
+      if (sid && token && from) {
+        const twilio = require("twilio")(sid, token);
+        await twilio.messages.create({
+          body: `Your Chat App OTP code is ${otp}. It expires in 5 minutes.`,
+          from: from,
+          to: value,
+        });
+        console.log(`SMS OTP resent via Twilio to ${value}`);
+      } else {
+        // Mock fallback
+        console.log("==========================================");
+        console.log(`[MOCK SMS OTP RESEND] To: ${value} | OTP: ${otp}`);
+        console.log("==========================================");
+      }
+    }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: "OTP resent successfully",
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: error.message,
     });
@@ -394,18 +529,26 @@ exports.resendOtp = async (req, res) => {
 
 exports.autoLogin = async (req, res) => {
   try {
-    const { email } = req.body;
+    const inputContact = req.body.contact || req.body.email || req.body.phone;
 
-    if (!email || typeof email !== "string") {
+    if (!inputContact || typeof inputContact !== "string") {
       return res.status(400).json({
         success: false,
-        message: "Email is required",
+        message: "Email or phone number is required",
       });
     }
 
-    const normalizedEmail = email.toLowerCase().trim();
+    const detection = detectContactType(inputContact);
+    if (!detection.isValid) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid email or phone number format",
+      });
+    }
 
-    const cachedUser = await redisClient.get(`user:${normalizedEmail}`);
+    const { type, value } = detection;
+
+    const cachedUser = await redisClient.get(`user:${value}`);
 
     if (cachedUser) {
       console.log("CACHE HIT");
@@ -426,7 +569,12 @@ exports.autoLogin = async (req, res) => {
 
     console.log("CACHE MISS");
 
-    const user = await User.findOne({ email: normalizedEmail });
+    let user;
+    if (type === "email") {
+      user = await User.findOne({ email: value });
+    } else {
+      user = await User.findOne({ phone: value });
+    }
 
     if (!user) {
       return res.status(404).json({
@@ -435,7 +583,7 @@ exports.autoLogin = async (req, res) => {
       });
     }
 
-    await redisClient.set(`user:${normalizedEmail}`, JSON.stringify(user), {
+    await redisClient.set(`user:${value}`, JSON.stringify(user), {
       EX: 3600,
     });
 
@@ -450,13 +598,13 @@ exports.autoLogin = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: false,
       autoLogin: false,
       message: "OTP verification required",
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: error.message,
     });
@@ -513,144 +661,5 @@ exports.saveFcmToken = async (req, res) => {
   } catch (err) {
     console.log(err);
     res.status(500).json({ message: "Server error" });
-  }
-};
-
-exports.sendPhoneOtp = async (req, res) => {
-  try {
-    const { phone } = req.body;
-
-    if (!phone || typeof phone !== "string") {
-      return res.status(400).json({
-        success: false,
-        message: "Phone number is required",
-      });
-    }
-
-    const normalizedPhone = phone.trim();
-
-    // Check if user already exists
-    let user = await User.findOne({ phone: normalizedPhone });
-
-    if (!user) {
-      user = new User({ phone: normalizedPhone });
-      await user.save();
-    }
-
-    const cooldown = await redisClient.get(`cooldown:${normalizedPhone}`);
-    if (cooldown) {
-      return res.status(400).json({
-        success: false,
-        message: "Please wait 30 seconds before requesting again",
-      });
-    }
-
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-
-    // Store in Redis
-    await redisClient.set(`otp:${normalizedPhone}`, otp, { EX: 300 });
-    await redisClient.set(`cooldown:${normalizedPhone}`, "true", { EX: 30 });
-
-    // Send via SMS
-    const sid = process.env.TWILIO_ACCOUNT_SID;
-    const token = process.env.TWILIO_AUTH_TOKEN;
-    const from = process.env.TWILIO_PHONE_NUMBER;
-
-    if (sid && token && from) {
-      try {
-        const twilio = require("twilio")(sid, token);
-        await twilio.messages.create({
-          body: `Your Chat App OTP code is ${otp}. It expires in 5 minutes.`,
-          from: from,
-          to: normalizedPhone,
-        });
-        console.log(`SMS OTP sent via Twilio to ${normalizedPhone}`);
-      } catch (err) {
-        console.error("Twilio SMS send failed:", err);
-        return res.status(500).json({
-          success: false,
-          message: "Failed to send SMS OTP via Twilio. Please try again later.",
-        });
-      }
-    } else {
-      // Mock fallback
-      console.log("==========================================");
-      console.log(`[MOCK SMS OTP] To: ${normalizedPhone} | OTP: ${otp}`);
-      console.log("==========================================");
-    }
-
-    return res.status(200).json({
-      success: true,
-      message: "SMS OTP sent successfully",
-    });
-  } catch (error) {
-    console.error("Send Phone OTP error:", error);
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
-
-exports.verifyPhoneOtp = async (req, res) => {
-  try {
-    const { phone, otp } = req.body;
-
-    if (!phone || !otp) {
-      return res.status(400).json({
-        success: false,
-        message: "Phone and OTP are required",
-      });
-    }
-
-    const normalizedPhone = String(phone).trim();
-
-    const user = await User.findOne({ phone: normalizedPhone });
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
-    }
-
-    const storedOtp = await redisClient.get(`otp:${normalizedPhone}`);
-
-    if (!storedOtp) {
-      return res.status(400).json({
-        success: false,
-        message: "OTP expired",
-      });
-    }
-
-    if (storedOtp !== otp.toString()) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid OTP",
-      });
-    }
-
-    await redisClient.del(`otp:${normalizedPhone}`);
-
-    user.isVerified = true;
-    user.loggedOut = false;
-
-    await user.save();
-
-    await redisClient.set(`user:${normalizedPhone}`, JSON.stringify(user), { EX: 3600 });
-
-    const token = generateToken(user);
-
-    return res.status(200).json({
-      success: true,
-      message: "Login successful",
-      token,
-      user,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
   }
 };
