@@ -81,7 +81,14 @@ const mapContactsToUsers = (contacts = [], users = [], currentUserId) => {
     const emailKey = user.email?.toLowerCase();
 
     if (phoneKey) {
+      // Index by full normalized number
       userMap.set(phoneKey, user);
+
+      // Also index by last 10 digits to handle country code mismatches
+      const last10 = phoneKey.replace(/\D/g, "").slice(-10);
+      if (last10.length === 10) {
+        userMap.set(last10, user);
+      }
     }
 
     if (emailKey) {
@@ -90,14 +97,26 @@ const mapContactsToUsers = (contacts = [], users = [], currentUserId) => {
   });
 
   return contacts.map((contact) => {
-    const phoneKey = normalizePhone(
-      contact.phone ||
-        contact.mobile ||
-        contact.contactNumber ||
-        contact.number,
-    );
+    const rawPhone = contact.phone ||
+      contact.mobile ||
+      contact.contactNumber ||
+      contact.number ||
+      "";
+    const phoneKey = normalizePhone(rawPhone);
+    const last10 = phoneKey.replace(/\D/g, "").slice(-10);
     const emailKey = (contact.email || "").toLowerCase();
-    const matchedUser = userMap.get(phoneKey) || userMap.get(emailKey) || null;
+
+    let matchedUser = null;
+
+    if (phoneKey) {
+      matchedUser = userMap.get(phoneKey);
+    }
+    if (!matchedUser && last10.length === 10) {
+      matchedUser = userMap.get(last10);
+    }
+    if (!matchedUser && emailKey) {
+      matchedUser = userMap.get(emailKey);
+    }
 
     return {
       _id: matchedUser?._id || null,
