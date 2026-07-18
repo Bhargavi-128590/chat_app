@@ -9,10 +9,11 @@ const userSchema = new mongoose.Schema(
 
     email: {
       type: String,
-      required: true,
       unique: true,
+      sparse: true,
       lowercase: true,
       trim: true,
+      default: null,
     },
 
     otp: {
@@ -56,7 +57,14 @@ const userSchema = new mongoose.Schema(
     },
     fcmToken: {
       type: String,
-      default:null
+      default: null,
+    },
+    phone: {
+      type: String,
+      unique: true,
+      sparse: true,
+      trim: true,
+      default: null,
     },
   },
   {

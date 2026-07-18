@@ -242,13 +242,6 @@ exports.sendOtp = async (req, res) => {
 
     const normalizedEmail = email.toLowerCase().trim();
 
-    if (!normalizedEmail.endsWith("@gmail.com")) {
-      return res.status(403).json({
-        success: false,
-        message: "Only @gmail.com emails are allowed",
-      });
-    }
-
     let user = await User.findOne({ email: normalizedEmail });
 
     if (!user) {
@@ -412,13 +405,6 @@ exports.autoLogin = async (req, res) => {
 
     const normalizedEmail = email.toLowerCase().trim();
 
-    if (!normalizedEmail.endsWith("@gmail.com")) {
-      return res.status(403).json({
-        success: false,
-        message: "Only @gmail.com emails are allowed",
-      });
-    }
-
     const cachedUser = await redisClient.get(`user:${normalizedEmail}`);
 
     if (cachedUser) {
@@ -527,5 +513,144 @@ exports.saveFcmToken = async (req, res) => {
   } catch (err) {
     console.log(err);
     res.status(500).json({ message: "Server error" });
+  }
+};
+
+exports.sendPhoneOtp = async (req, res) => {
+  try {
+    const { phone } = req.body;
+
+    if (!phone || typeof phone !== "string") {
+      return res.status(400).json({
+        success: false,
+        message: "Phone number is required",
+      });
+    }
+
+    const normalizedPhone = phone.trim();
+
+    // Check if user already exists
+    let user = await User.findOne({ phone: normalizedPhone });
+
+    if (!user) {
+      user = new User({ phone: normalizedPhone });
+      await user.save();
+    }
+
+    const cooldown = await redisClient.get(`cooldown:${normalizedPhone}`);
+    if (cooldown) {
+      return res.status(400).json({
+        success: false,
+        message: "Please wait 30 seconds before requesting again",
+      });
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Store in Redis
+    await redisClient.set(`otp:${normalizedPhone}`, otp, { EX: 300 });
+    await redisClient.set(`cooldown:${normalizedPhone}`, "true", { EX: 30 });
+
+    // Send via SMS
+    const sid = process.env.TWILIO_ACCOUNT_SID;
+    const token = process.env.TWILIO_AUTH_TOKEN;
+    const from = process.env.TWILIO_PHONE_NUMBER;
+
+    if (sid && token && from) {
+      try {
+        const twilio = require("twilio")(sid, token);
+        await twilio.messages.create({
+          body: `Your Chat App OTP code is ${otp}. It expires in 5 minutes.`,
+          from: from,
+          to: normalizedPhone,
+        });
+        console.log(`SMS OTP sent via Twilio to ${normalizedPhone}`);
+      } catch (err) {
+        console.error("Twilio SMS send failed:", err);
+        return res.status(500).json({
+          success: false,
+          message: "Failed to send SMS OTP via Twilio. Please try again later.",
+        });
+      }
+    } else {
+      // Mock fallback
+      console.log("==========================================");
+      console.log(`[MOCK SMS OTP] To: ${normalizedPhone} | OTP: ${otp}`);
+      console.log("==========================================");
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "SMS OTP sent successfully",
+    });
+  } catch (error) {
+    console.error("Send Phone OTP error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+exports.verifyPhoneOtp = async (req, res) => {
+  try {
+    const { phone, otp } = req.body;
+
+    if (!phone || !otp) {
+      return res.status(400).json({
+        success: false,
+        message: "Phone and OTP are required",
+      });
+    }
+
+    const normalizedPhone = String(phone).trim();
+
+    const user = await User.findOne({ phone: normalizedPhone });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    const storedOtp = await redisClient.get(`otp:${normalizedPhone}`);
+
+    if (!storedOtp) {
+      return res.status(400).json({
+        success: false,
+        message: "OTP expired",
+      });
+    }
+
+    if (storedOtp !== otp.toString()) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid OTP",
+      });
+    }
+
+    await redisClient.del(`otp:${normalizedPhone}`);
+
+    user.isVerified = true;
+    user.loggedOut = false;
+
+    await user.save();
+
+    await redisClient.set(`user:${normalizedPhone}`, JSON.stringify(user), { EX: 3600 });
+
+    const token = generateToken(user);
+
+    return res.status(200).json({
+      success: true,
+      message: "Login successful",
+      token,
+      user,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };

@@ -8,15 +8,15 @@ router.post(
   "/",
   upload.single("file"),
   (req, res) => {
+    const host = req.get("host");
+    const protocol = req.protocol;
+    const fileUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
 
     res.status(200).json({
       success: true,
       file: req.file,
-      fileUrl:
-        "http://localhost:5000/uploads/" +
-        req.file.filename,
+      fileUrl: fileUrl,
     });
-
   }
 );
 

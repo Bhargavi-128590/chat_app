@@ -187,4 +187,57 @@ router.post("/logout", auth, controller.logout);
  *         description: Token saved
  */
 router.post("/save-fcm-token", auth, saveFcmToken);
+
+/**
+ * @swagger
+ * /api/auth/send-phone-otp:
+ *   post:
+ *     summary: Send OTP to user phone number
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - phone
+ *             properties:
+ *               phone:
+ *                 type: string
+ *                 example: "+1234567890"
+ *     responses:
+ *       200:
+ *         description: OTP sent successfully
+ */
+router.post("/send-phone-otp", controller.sendPhoneOtp);
+
+/**
+ * @swagger
+ * /api/auth/verify-phone-otp:
+ *   post:
+ *     summary: Verify Phone OTP and login
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - phone
+ *               - otp
+ *             properties:
+ *               phone:
+ *                 type: string
+ *                 example: "+1234567890"
+ *               otp:
+ *                 type: string
+ *                 example: "123456"
+ *     responses:
+ *       200:
+ *         description: OTP verified and user logged in
+ */
+router.post("/verify-phone-otp", controller.verifyPhoneOtp);
+
 module.exports = router;

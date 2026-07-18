@@ -259,6 +259,19 @@ exports.sendMessage = async (req, res) => {
       });
     }
 
+    const io = getIO();
+    const activeDeliveredTo = [req.user._id];
+
+    for (const receiverId of chat.users) {
+      if (receiverId.toString() === req.user._id.toString()) continue;
+      const isOnline = Boolean(
+        io && io.sockets?.adapter?.rooms?.get(receiverId.toString())?.size > 0
+      );
+      if (isOnline) {
+        activeDeliveredTo.push(receiverId);
+      }
+    }
+
     let message = await Message.create({
       sender: req.user._id,
 
@@ -270,7 +283,7 @@ exports.sendMessage = async (req, res) => {
 
       mediaUrl: mediaUrl || "",
 
-      deliveredTo: [req.user._id],
+      deliveredTo: activeDeliveredTo,
 
       seenBy: [req.user._id],
     });
@@ -292,8 +305,6 @@ exports.sendMessage = async (req, res) => {
     const receivers = chat.users.filter(
       (u) => u.toString() !== req.user._id.toString(),
     );
-
-    const io = getIO();
 
     /*
 Real time message
@@ -368,6 +379,28 @@ exports.getMessages = async (req, res) => {
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
+
+    // In the background, mark these messages as delivered to the reader
+    Message.updateMany(
+      {
+        chat: req.params.chatId,
+        sender: { $ne: req.user._id },
+        deliveredTo: { $ne: req.user._id },
+      },
+      {
+        $addToSet: { deliveredTo: req.user._id },
+      }
+    ).then((result) => {
+      if (result.modifiedCount > 0) {
+        const io = getIO();
+        if (io) {
+          io.to(req.params.chatId).emit("chat_delivered", {
+            chatId: req.params.chatId,
+            userId: req.user._id,
+          });
+        }
+      }
+    }).catch((err) => console.error("Background delivery update failed:", err));
 
     return res.status(200).json({
       success: true,
@@ -478,6 +511,108 @@ exports.markAsSeen = async (req, res) => {
 
     return res.status(200).json({
       success: true,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+exports.markChatAsSeen = async (req, res) => {
+  try {
+    const { chatId } = req.params;
+
+    const chat = await Chat.findById(chatId);
+    if (!chat) {
+      return res.status(404).json({
+        success: false,
+        message: "Chat not found",
+      });
+    }
+
+    if (!chat.users.some((u) => u.toString() === req.user._id.toString())) {
+      return res.status(403).json({
+        success: false,
+        message: "Not authorized to access this chat",
+      });
+    }
+
+    const result = await Message.updateMany(
+      {
+        chat: chatId,
+        sender: { $ne: req.user._id },
+        seenBy: { $ne: req.user._id },
+      },
+      {
+        $addToSet: { seenBy: req.user._id },
+      }
+    );
+
+    const io = getIO();
+    if (io) {
+      io.to(chatId).emit("chat_seen", {
+        chatId,
+        userId: req.user._id,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Chat marked as read",
+      modifiedCount: result.modifiedCount,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+exports.markChatAsDelivered = async (req, res) => {
+  try {
+    const { chatId } = req.params;
+
+    const chat = await Chat.findById(chatId);
+    if (!chat) {
+      return res.status(404).json({
+        success: false,
+        message: "Chat not found",
+      });
+    }
+
+    if (!chat.users.some((u) => u.toString() === req.user._id.toString())) {
+      return res.status(403).json({
+        success: false,
+        message: "Not authorized to access this chat",
+      });
+    }
+
+    const result = await Message.updateMany(
+      {
+        chat: chatId,
+        sender: { $ne: req.user._id },
+        deliveredTo: { $ne: req.user._id },
+      },
+      {
+        $addToSet: { deliveredTo: req.user._id },
+      }
+    );
+
+    const io = getIO();
+    if (io) {
+      io.to(chatId).emit("chat_delivered", {
+        chatId,
+        userId: req.user._id,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Chat marked as delivered",
+      modifiedCount: result.modifiedCount,
     });
   } catch (error) {
     return res.status(500).json({

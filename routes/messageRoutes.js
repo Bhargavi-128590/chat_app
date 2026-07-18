@@ -152,4 +152,52 @@ router.delete(
   controller.deleteMessage
 );
 
+/**
+ * @swagger
+ * /api/messages/chat/{chatId}/seen:
+ *   put:
+ *     summary: Mark all messages in chat as read
+ *     tags: [Messages]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: chatId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: All messages marked as seen
+ */
+router.put(
+  "/chat/:chatId/seen",
+  auth,
+  controller.markChatAsSeen
+);
+
+/**
+ * @swagger
+ * /api/messages/chat/{chatId}/delivered:
+ *   put:
+ *     summary: Mark all messages in chat as delivered
+ *     tags: [Messages]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: chatId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: All messages marked as delivered
+ */
+router.put(
+  "/chat/:chatId/delivered",
+  auth,
+  controller.markChatAsDelivered
+);
+
 module.exports = router;
