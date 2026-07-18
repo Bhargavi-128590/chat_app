@@ -77,15 +77,6 @@ exports.getContacts = async (req, res) => {
 
     if (Array.isArray(incomingContacts) && incomingContacts.length > 0) {
       contactsToMatch = incomingContacts;
-    } else if (searchText) {
-      contactsToMatch = [{ name: searchText, email: searchText }];
-    }
-
-    if (contactsToMatch.length === 0 && !searchText) {
-      return res.status(200).json({
-        success: true,
-        contacts: [],
-      });
     }
 
     const filter = {
@@ -96,6 +87,7 @@ exports.getContacts = async (req, res) => {
       filter.$or = [
         { name: { $regex: searchText, $options: "i" } },
         { email: { $regex: searchText, $options: "i" } },
+        { phone: { $regex: searchText, $options: "i" } },
       ];
     }
 
@@ -103,13 +95,12 @@ exports.getContacts = async (req, res) => {
       .select("name email profilePic isOnline lastSeen isVerified phone")
       .sort({ name: 1, email: 1 });
 
-    const matchedContacts = mapContactsToUsers(
-      contactsToMatch,
-      users,
-      req.user._id,
-    );
-
     if (contactsToMatch.length > 0) {
+      const matchedContacts = mapContactsToUsers(
+        contactsToMatch,
+        users,
+        req.user._id,
+      );
       return res.status(200).json({
         success: true,
         contacts: matchedContacts,
@@ -118,7 +109,7 @@ exports.getContacts = async (req, res) => {
 
     const contacts = users.map((user) => ({
       _id: user._id,
-      name: user.name || user.email,
+      name: user.name || user.email || user.phone,
       email: user.email,
       phone: user.phone || "",
       profilePic: user.profilePic,
