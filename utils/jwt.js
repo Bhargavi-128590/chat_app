@@ -1,6 +1,9 @@
 const jwt = require("jsonwebtoken");
 
 exports.generateToken = (user) => {
+  if (!process.env.JWT_SECRET) {
+    throw new Error("JWT_SECRET is not configured");
+  }
 
   return jwt.sign(
     {
@@ -9,7 +12,6 @@ exports.generateToken = (user) => {
     process.env.JWT_SECRET,
     {
       expiresIn: "7d",
-    }
+    },
   );
-
 };

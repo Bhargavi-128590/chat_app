@@ -233,40 +233,35 @@ exports.sendOtp = async (req, res) => {
   try {
     const { email } = req.body;
 
-    // Restrict login to @gmail.com only
-    if (!email.endsWith("@gmail.com")) {
+    if (!email || typeof email !== "string") {
+      return res.status(400).json({
+        success: false,
+        message: "Email is required",
+      });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    if (!normalizedEmail.endsWith("@gmail.com")) {
       return res.status(403).json({
         success: false,
         message: "Only @gmail.com emails are allowed",
       });
     }
 
-    let user = await User.findOne({ email });
+    let user = await User.findOne({ email: normalizedEmail });
 
     if (!user) {
-      user = new User({ email });
+      user = new User({ email: normalizedEmail });
       await user.save();
     }
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    console.log("Before Redis SET");
-
-    console.log("redisClient =", redisClient);
-    console.log("redisClient type =", typeof redisClient);
-
-    console.log("redisClient value:", redisClient);
-
-    const result = await redisClient.set(`otp:${email}`, otp, { EX: 300 });
-
-    console.log("Redis Result:", result);
-
-    const value = await redisClient.get(`otp:${email}`);
-
-    console.log("Redis Value:", value);
+    await redisClient.set(`otp:${normalizedEmail}`, otp, { EX: 300 });
 
     try {
-      await sendOtp(email, otp);
+      await sendOtp(normalizedEmail, otp);
     } catch (mailError) {
       console.error("Mail sending error:", mailError.message || mailError);
       return res.status(500).json({
@@ -281,7 +276,7 @@ exports.sendOtp = async (req, res) => {
       message: "OTP sent successfully",
     });
   } catch (error) {
-    console.log(error);
+    console.error("Send OTP error:", error);
 
     res.status(500).json({
       success: false,
@@ -294,7 +289,16 @@ exports.verifyOtp = async (req, res) => {
   try {
     const { email, otp } = req.body;
 
-    const user = await User.findOne({ email });
+    if (!email || !otp) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and OTP are required",
+      });
+    }
+
+    const normalizedEmail = String(email).toLowerCase().trim();
+
+    const user = await User.findOne({ email: normalizedEmail });
 
     if (!user) {
       return res.status(404).json({
@@ -303,7 +307,7 @@ exports.verifyOtp = async (req, res) => {
       });
     }
 
-    const storedOtp = await redisClient.get(`otp:${email}`);
+    const storedOtp = await redisClient.get(`otp:${normalizedEmail}`);
 
     if (!storedOtp) {
       return res.status(400).json({
@@ -319,7 +323,7 @@ exports.verifyOtp = async (req, res) => {
       });
     }
 
-    await redisClient.del(`otp:${email}`);
+    await redisClient.del(`otp:${normalizedEmail}`);
 
     user.isVerified = true;
     user.loggedOut = false;
@@ -348,7 +352,16 @@ exports.resendOtp = async (req, res) => {
   try {
     const { email } = req.body;
 
-    const user = await User.findOne({ email });
+    if (!email || typeof email !== "string") {
+      return res.status(400).json({
+        success: false,
+        message: "Email is required",
+      });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    const user = await User.findOne({ email: normalizedEmail });
 
     if (!user) {
       return res.status(404).json({
@@ -357,7 +370,7 @@ exports.resendOtp = async (req, res) => {
       });
     }
 
-    const cooldown = await redisClient.get(`cooldown:${email}`);
+    const cooldown = await redisClient.get(`cooldown:${normalizedEmail}`);
 
     if (cooldown) {
       return res.status(400).json({
@@ -368,11 +381,11 @@ exports.resendOtp = async (req, res) => {
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    await redisClient.set(`otp:${email}`, otp, { EX: 300 });
+    await redisClient.set(`otp:${normalizedEmail}`, otp, { EX: 300 });
 
-    await redisClient.set(`cooldown:${email}`, "true", { EX: 30 });
+    await redisClient.set(`cooldown:${normalizedEmail}`, "true", { EX: 30 });
 
-    await sendOtp(email, otp);
+    await sendOtp(normalizedEmail, otp);
 
     res.status(200).json({
       success: true,
@@ -390,15 +403,23 @@ exports.autoLogin = async (req, res) => {
   try {
     const { email } = req.body;
 
-    // Restrict login to @gmail.com only
-    if (!email.endsWith("@gmail.com")) {
+    if (!email || typeof email !== "string") {
+      return res.status(400).json({
+        success: false,
+        message: "Email is required",
+      });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    if (!normalizedEmail.endsWith("@gmail.com")) {
       return res.status(403).json({
         success: false,
         message: "Only @gmail.com emails are allowed",
       });
     }
 
-    const cachedUser = await redisClient.get(`user:${email}`);
+    const cachedUser = await redisClient.get(`user:${normalizedEmail}`);
 
     if (cachedUser) {
       console.log("CACHE HIT");
@@ -419,7 +440,7 @@ exports.autoLogin = async (req, res) => {
 
     console.log("CACHE MISS");
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: normalizedEmail });
 
     if (!user) {
       return res.status(404).json({
@@ -428,7 +449,9 @@ exports.autoLogin = async (req, res) => {
       });
     }
 
-    await redisClient.set(`user:${email}`, JSON.stringify(user), { EX: 3600 });
+    await redisClient.set(`user:${normalizedEmail}`, JSON.stringify(user), {
+      EX: 3600,
+    });
 
     if (!user.loggedOut) {
       const token = generateToken(user);
@@ -456,7 +479,7 @@ exports.autoLogin = async (req, res) => {
 
 exports.logout = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
+    const user = await User.findById(req.user._id || req.user.id);
 
     if (!user) {
       return res.status(404).json({

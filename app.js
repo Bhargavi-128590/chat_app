@@ -18,16 +18,19 @@ const swaggerDocs = require("./config/swagger");
 
 const app = express();
 
+app.disable("x-powered-by");
+
 // Middleware
-app.use(cors({
-  origin: "*",
-  methods: ["GET", "POST", "PUT", "DELETE"],
-}));
+app.use(
+  cors({
+    origin: process.env.CORS_ORIGIN || "*",
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  }),
+);
 
-app.use(express.json());
-
-app.use(express.urlencoded({ extended: true }));
-
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // Static uploads folder
 app.use("/uploads", express.static("uploads"));
@@ -41,9 +44,15 @@ app.use("/api/messages", messageRoutes);
 
 app.use("/api/upload", uploadRoutes);
 
-
 app.use("/api/notifications", notificationRoutes);
-console.log("Notification Routes Loaded");
+
+app.use((err, req, res, next) => {
+  console.error("Unhandled error:", err);
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || "Internal server error",
+  });
+});
 
 // Swagger
 swaggerDocs(app);

@@ -62,9 +62,15 @@ exports.accessChat = async (req, res) => {
 exports.getContacts = async (req, res) => {
   try {
     const search = req.query.search || "";
-    const searchText = search.trim();
+    const searchText = String(search || "").trim();
     const incomingContacts = extractContactsToMatch(
-      req.body?.contacts ?? req.body ?? req.query?.contacts ?? req.query ?? [],
+      req.body?.contacts ??
+        req.body ??
+        req.query?.contacts ??
+        req.query ??
+        req.body?.data ??
+        req.query?.data ??
+        [],
     );
 
     let contactsToMatch = [];

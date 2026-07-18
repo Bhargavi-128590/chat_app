@@ -27,14 +27,7 @@ const parseContactsPayload = (payload) => {
 
       try {
         const parsed = JSON.parse(trimmed);
-
-        if (Array.isArray(parsed)) {
-          return parsed;
-        }
-
-        if (parsed && Array.isArray(parsed.contacts)) {
-          return parsed.contacts;
-        }
+        return parseContactsPayload(parsed);
       } catch (error) {
         return [];
       }
@@ -43,16 +36,28 @@ const parseContactsPayload = (payload) => {
     return [];
   }
 
-  if (Array.isArray(payload.contacts)) {
-    return payload.contacts;
-  }
+  const candidateKeys = [
+    "contacts",
+    "data",
+    "items",
+    "result",
+    "users",
+    "phoneNumbers",
+  ];
 
-  if (typeof payload.contacts === "string") {
-    return parseContactsPayload(payload.contacts);
-  }
+  for (const key of candidateKeys) {
+    const value = payload[key];
 
-  if (Array.isArray(payload.data)) {
-    return payload.data;
+    if (Array.isArray(value)) {
+      return value;
+    }
+
+    if (typeof value === "string") {
+      const parsedValue = parseContactsPayload(value);
+      if (Array.isArray(parsedValue) && parsedValue.length > 0) {
+        return parsedValue;
+      }
+    }
   }
 
   return [];
@@ -86,7 +91,10 @@ const mapContactsToUsers = (contacts = [], users = [], currentUserId) => {
 
   return contacts.map((contact) => {
     const phoneKey = normalizePhone(
-      contact.phone || contact.mobile || contact.contactNumber,
+      contact.phone ||
+        contact.mobile ||
+        contact.contactNumber ||
+        contact.number,
     );
     const emailKey = (contact.email || "").toLowerCase();
     const matchedUser = userMap.get(phoneKey) || userMap.get(emailKey) || null;
@@ -98,12 +106,15 @@ const mapContactsToUsers = (contacts = [], users = [], currentUserId) => {
         matchedUser?.name ||
         contact.email ||
         contact.phone ||
+        contact.mobile ||
+        contact.contactNumber ||
         "",
       email: matchedUser?.email || contact.email || "",
       phone:
         contact.phone ||
         contact.mobile ||
         contact.contactNumber ||
+        contact.number ||
         matchedUser?.phone ||
         "",
       profilePic: matchedUser?.profilePic || "",

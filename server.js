@@ -12,10 +12,17 @@ const PORT = process.env.PORT || 5000;
 const startServer = async () => {
   try {
     console.log("Starting Server...");
- 
+
     await connectDB();
 
-    await connectRedis();
+    try {
+      await connectRedis();
+    } catch (redisError) {
+      console.warn(
+        "Redis unavailable, continuing without cache:",
+        redisError.message,
+      );
+    }
 
     const server = http.createServer(app);
 
