@@ -12,6 +12,58 @@ const normalizePhone = (value) => {
   return digits.length > 10 ? `+${digits}` : digits;
 };
 
+const parseContactsPayload = (payload) => {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (!payload || typeof payload !== "object") {
+    if (typeof payload === "string") {
+      const trimmed = payload.trim();
+
+      if (!trimmed) {
+        return [];
+      }
+
+      try {
+        const parsed = JSON.parse(trimmed);
+
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
+
+        if (parsed && Array.isArray(parsed.contacts)) {
+          return parsed.contacts;
+        }
+      } catch (error) {
+        return [];
+      }
+    }
+
+    return [];
+  }
+
+  if (Array.isArray(payload.contacts)) {
+    return payload.contacts;
+  }
+
+  if (typeof payload.contacts === "string") {
+    return parseContactsPayload(payload.contacts);
+  }
+
+  if (Array.isArray(payload.data)) {
+    return payload.data;
+  }
+
+  return [];
+};
+
+const extractContactsToMatch = (payload) => {
+  const parsedPayload = parseContactsPayload(payload);
+
+  return Array.isArray(parsedPayload) ? parsedPayload : [];
+};
+
 const mapContactsToUsers = (contacts = [], users = [], currentUserId) => {
   const userMap = new Map();
 
@@ -67,5 +119,6 @@ const mapContactsToUsers = (contacts = [], users = [], currentUserId) => {
 
 module.exports = {
   normalizePhone,
+  extractContactsToMatch,
   mapContactsToUsers,
 };

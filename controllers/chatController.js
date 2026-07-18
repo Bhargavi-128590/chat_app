@@ -1,6 +1,9 @@
 const Chat = require("../models/Chat");
 const User = require("../models/User");
-const { mapContactsToUsers } = require("../utils/contactMatcher");
+const {
+  extractContactsToMatch,
+  mapContactsToUsers,
+} = require("../utils/contactMatcher");
 
 exports.accessChat = async (req, res) => {
   try {
@@ -60,7 +63,9 @@ exports.getContacts = async (req, res) => {
   try {
     const search = req.query.search || "";
     const searchText = search.trim();
-    const incomingContacts = req.body?.contacts || req.query?.contacts || [];
+    const incomingContacts = extractContactsToMatch(
+      req.body?.contacts ?? req.body ?? req.query?.contacts ?? req.query ?? [],
+    );
 
     let contactsToMatch = [];
 
@@ -68,6 +73,13 @@ exports.getContacts = async (req, res) => {
       contactsToMatch = incomingContacts;
     } else if (searchText) {
       contactsToMatch = [{ name: searchText, email: searchText }];
+    }
+
+    if (contactsToMatch.length === 0 && !searchText) {
+      return res.status(200).json({
+        success: true,
+        contacts: [],
+      });
     }
 
     const filter = {

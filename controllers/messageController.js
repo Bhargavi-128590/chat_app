@@ -298,14 +298,17 @@ exports.sendMessage = async (req, res) => {
     /*
 Real time message
 */
-    io.to(chatId).emit(
-      "receive_message",
-
-      message,
-    );
+    if (io) {
+      io.to(chatId).emit("receive_message", message);
+    }
 
     for (const receiverId of receivers) {
       try {
+        const receiverIdString = receiverId.toString();
+        const isReceiverOnline = Boolean(
+          io && io.sockets?.adapter?.rooms?.get(receiverIdString)?.size > 0,
+        );
+
         const notification = await createNotification({
           recipient: receiverId,
 
@@ -318,21 +321,21 @@ Real time message
           chat: chatId,
 
           message: message._id,
+          sendPush: !isReceiverOnline,
         });
 
-        const populatedNotification = await notification.populate(
-          "sender",
+        if (isReceiverOnline && io) {
+          const populatedNotification = await notification.populate(
+            "sender",
 
-          "name profilePic",
-        );
+            "name profilePic",
+          );
 
-        io.to(receiverId.toString())
-
-          .emit(
+          io.to(receiverIdString).emit(
             "new_notification",
-
             populatedNotification,
           );
+        }
       } catch (notificationError) {
         console.error("Notification delivery failed:", notificationError);
       }

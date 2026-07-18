@@ -16,6 +16,7 @@ const createNotification = async ({
   chat,
 
   message,
+  sendPush = true,
 }) => {
   const notification = await Notification.create({
     receiver: recipient,
@@ -31,28 +32,40 @@ const createNotification = async ({
     message,
   });
 
+  if (!recipient) {
+    return notification;
+  }
+
   const user = await User.findById(recipient);
 
-  if (user?.fcmToken) {
-    try {
-      await sendFCM(
-        user.fcmToken,
+  if (!sendPush || !user?.fcmToken) {
+    return notification;
+  }
 
-        title,
+  try {
+    const pushResult = await sendFCM(
+      user.fcmToken,
 
-        body,
+      title,
 
-        {
-          type: "MESSAGE",
+      body,
 
-          senderId: String(sender),
+      {
+        type: "MESSAGE",
 
-          chatId: String(chat),
-        },
-      );
-    } catch (fcmError) {
-      console.error("FCM push failed for user", recipient, fcmError);
+        senderId: String(sender),
+
+        chatId: String(chat),
+      },
+    );
+
+    if (!pushResult?.success && pushResult?.reason === "invalid-token") {
+      await User.findByIdAndUpdate(recipient, {
+        $unset: { fcmToken: 1 },
+      });
     }
+  } catch (fcmError) {
+    console.error("FCM push failed for user", recipient, fcmError);
   }
 
   return notification;

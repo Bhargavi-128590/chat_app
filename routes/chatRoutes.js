@@ -71,6 +71,7 @@ router.get("/", auth, controller.getChats);
  *       200:
  *         description: Contacts fetched successfully
  */
+router.post("/contacts", auth, controller.getContacts);
 router.get("/contacts", auth, controller.getContacts);
 
 /**
